@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0",
+  "id": "22a5d37c-47df-4db1-af6b-7fc31b05111a",
+  "created_at": "2026-08-26T00:00:00.000Z",
+  "source": {
+    "type": "sample",
+    "title": "Health endpoint planning"
+  },
+  "target": {
+    "agent": "codex",
+    "adapter_version": "sample"
+  },
+  "project": {
+    "id": "b4a81606-99e6-4024-a21b-9a3ac5045317",
+    "name": "sample-service",
+    "root": "/Users/example/projects/sample-service"
+  },
+  "conversation": {
+    "selection_mode": "selected",
+    "messages": [
+      {
+        "id": "message-1",
+        "role": "user",
+        "text": "Add GET /health. Return a small JSON response and keep it unauthenticated."
+      },
+      {
+        "id": "message-2",
+        "role": "assistant",
+        "text": "Agreed: return { \"status\": \"ok\" }, add an integration test, and do not introduce a database."
+      }
+    ]
+  },
+  "task": {
+    "goal": "Add a health endpoint.",
+    "constraints": ["Keep the existing server binding.", "Do not add a database."],
+    "acceptance": ["GET /health returns HTTP 200 and { \"status\": \"ok\" }."]
+  },
+  "git": {
+    "branch": "feature/health",
+    "commit": "197cc21c074417812474d36d5f982e050ec64737",
+    "dirty": true,
+    "changed_files": [{ "status": "M", "path": "src/server.ts" }],
+    "diff_stat": "src/server.ts | 2 ++",
+    "recent_commits": [
+      {
+        "hash": "197cc21c074417812474d36d5f982e050ec64737",
+        "subject": "feat: add HTTP server",
+        "committed_at": "2026-08-25T12:00:00.000Z"
+      }
+    ]
+  }
+}

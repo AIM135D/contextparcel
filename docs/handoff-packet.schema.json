@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AIM135D/contextparcel/blob/v0.1.0/docs/handoff-packet.schema.json",
+  "title": "ContextParcel Handoff Packet v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "created_at",
+    "source",
+    "target",
+    "project",
+    "conversation",
+    "task",
+    "git"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "id": { "type": "string", "format": "uuid" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "source": { "$ref": "#/$defs/source" },
+    "target": { "$ref": "#/$defs/target" },
+    "project": { "$ref": "#/$defs/project" },
+    "conversation": { "$ref": "#/$defs/conversation" },
+    "task": { "$ref": "#/$defs/task" },
+    "git": { "oneOf": [{ "$ref": "#/$defs/git" }, { "type": "null" }] }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "title"],
+      "properties": {
+        "type": { "enum": ["chatgpt-web", "web-selection", "cli", "sample"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 500 }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent", "adapter_version"],
+      "properties": {
+        "agent": { "enum": ["codex", "claude", "cursor"] },
+        "adapter_version": { "type": "string", "minLength": 1, "maxLength": 100 }
+      }
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "root"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "root": { "type": "string", "minLength": 1, "maxLength": 4096 }
+      }
+    },
+    "message": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "text"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "role": { "enum": ["user", "assistant"] },
+        "text": { "type": "string", "maxLength": 250000 },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "conversation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["selection_mode", "messages"],
+      "properties": {
+        "selection_mode": { "enum": ["selected", "recent", "full", "generic-selection", "cli"] },
+        "messages": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10000,
+          "items": { "$ref": "#/$defs/message" }
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["goal", "constraints", "acceptance"],
+      "properties": {
+        "goal": { "oneOf": [{ "type": "string", "maxLength": 100000 }, { "type": "null" }] },
+        "constraints": {
+          "type": "array",
+          "maxItems": 200,
+          "items": { "type": "string", "maxLength": 20000 }
+        },
+        "acceptance": {
+          "type": "array",
+          "maxItems": 200,
+          "items": { "type": "string", "maxLength": 20000 }
+        }
+      }
+    },
+    "changed_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "path"],
+      "properties": {
+        "status": { "type": "string", "minLength": 1, "maxLength": 4 },
+        "path": { "type": "string", "minLength": 1, "maxLength": 4096 }
+      }
+    },
+    "commit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hash", "subject", "committed_at"],
+      "properties": {
+        "hash": { "type": "string", "minLength": 7, "maxLength": 64 },
+        "subject": { "type": "string", "maxLength": 1000 },
+        "committed_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "git": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["branch", "commit", "dirty", "changed_files", "diff_stat", "recent_commits"],
+      "properties": {
+        "branch": { "oneOf": [{ "type": "string", "maxLength": 1000 }, { "type": "null" }] },
+        "commit": {
+          "oneOf": [{ "type": "string", "minLength": 7, "maxLength": 64 }, { "type": "null" }]
+        },
+        "dirty": { "type": "boolean" },
+        "changed_files": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": { "$ref": "#/$defs/changed_file" }
+        },
+        "diff_stat": { "oneOf": [{ "type": "string", "maxLength": 50000 }, { "type": "null" }] },
+        "recent_commits": {
+          "type": "array",
+          "maxItems": 20,
+          "items": { "$ref": "#/$defs/commit" }
+        }
+      }
+    }
+  }
+}
