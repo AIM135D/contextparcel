@@ -31,7 +31,7 @@
   ],
   "scripts": {
     "build": "npm run build:cli && npm run build:extension",
-    "build:cli": "esbuild apps/cli/src/index.ts --bundle --platform=node --format=cjs --target=node20 --banner:js='#!/usr/bin/env node' --outfile=dist/contextparcel.cjs && node scripts/mark-cli-executable.mjs",
+    "build:cli": "node scripts/build-cli.mjs && node scripts/mark-cli-executable.mjs",
     "build:extension": "vite build --config apps/extension/vite.config.ts && node scripts/package-extension.mjs",
     "clean": "node scripts/clean.mjs",
     "format": "prettier --write .",
