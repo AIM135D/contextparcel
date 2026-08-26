@@ -2,6 +2,7 @@ export * from "./constants.js";
 export * from "./daemon.js";
 export * from "./errors.js";
 export * from "./handoffs.js";
+export * from "./lifecycle.js";
 export * from "./logger.js";
 export * from "./markdown.js";
 export * from "./pairing.js";

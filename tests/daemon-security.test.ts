@@ -31,13 +31,19 @@ const targetFactory: TargetFactory = (target: TargetAgent): TargetAdapter => ({
 
 async function api(
   path: string,
-  options: { origin?: string; token?: string; body?: unknown; method?: "GET" | "POST" } = {}
+  options: {
+    origin?: string;
+    token?: string;
+    body?: unknown;
+    rawBody?: string;
+    method?: "GET" | "POST";
+  } = {}
 ): Promise<Response> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (options.origin !== undefined) headers.Origin = options.origin;
   if (options.token !== undefined) headers.Authorization = `Bearer ${options.token}`;
   const init: RequestInit = { method: options.method ?? "POST", headers };
-  if (init.method === "POST") init.body = JSON.stringify(options.body ?? {});
+  if (init.method === "POST") init.body = options.rawBody ?? JSON.stringify(options.body ?? {});
   return fetch(`http://127.0.0.1:${daemon.port}${path}`, init);
 }
 
@@ -109,9 +115,85 @@ describe("localhost daemon security", () => {
     const traversal = await api("/v1/preview", {
       origin: extensionOrigin,
       token,
-      body: { ...requestFixture(projectId), project_root: "../../../private" }
+      body: {
+        target: "codex",
+        project_id: projectId,
+        message_counts: { user: 1, assistant: 0 },
+        include_git: true,
+        include_task: true,
+        project_root: "../../../private"
+      }
     });
     expect(traversal.status).toBe(400);
+  });
+
+  it("invalidates a pairing code after ten failed attempts", async () => {
+    const { code } = await issuePairingCode(store);
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const response = await api("/v1/pair", {
+        origin: extensionOrigin,
+        body: { code: code === "000000" ? "000001" : "000000", extension_id: extensionId }
+      });
+      expect(response.status).toBe(401);
+    }
+    expect(
+      (
+        await api("/v1/pair", {
+          origin: extensionOrigin,
+          body: { code, extension_id: extensionId }
+        })
+      ).status
+    ).toBe(401);
+    expect((await store.readState()).pair_code).toBeUndefined();
+  });
+
+  it("rejects oversized requests before schema handling", async () => {
+    const token = await pair();
+    const response = await api("/v1/preview", {
+      origin: extensionOrigin,
+      token,
+      rawBody: JSON.stringify({ padding: "x".repeat(2 * 1024 * 1024) })
+    });
+    expect(response.status).toBe(413);
+  });
+
+  it("rejects an unknown but well-formed project ID", async () => {
+    const token = await pair();
+    const response = await api("/v1/preview", {
+      origin: extensionOrigin,
+      token,
+      body: {
+        target: "codex",
+        project_id: crypto.randomUUID(),
+        message_counts: { user: 1, assistant: 0 },
+        include_git: false,
+        include_task: false
+      }
+    });
+    expect(response.status).toBe(404);
+  });
+
+  it("previews counts without accepting conversation text", async () => {
+    const token = await pair();
+    const response = await api("/v1/preview", {
+      origin: extensionOrigin,
+      token,
+      body: {
+        target: "codex",
+        project_id: projectId,
+        message_counts: { user: 3, assistant: 2 },
+        include_git: false,
+        include_task: true
+      }
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      messages: 5,
+      user_messages: 3,
+      assistant_messages: 2,
+      git: null,
+      task: true
+    });
   });
 
   it("accepts shell-like conversation text only as packet data", async () => {

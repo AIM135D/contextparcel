@@ -5,9 +5,9 @@ This script is designed for a real browser and terminal recording. Do not replac
 ## Prepare once
 
 1. Use a small public demo repository with a clean, understandable Git history.
-2. Run `contextparcel init --name DemoService` in that repository.
-3. Start `contextparcel serve` in a terminal with a compact prompt.
-4. Load the release extension and complete `contextparcel pair` before recording.
+2. Run `contextparcel setup --name DemoService` in that repository and finish extension pairing.
+3. Keep `contextparcel status` visible briefly to show the managed local daemon.
+4. Load the extension build attached to the same release.
 5. Install and authenticate Codex CLI using its normal login flow.
 6. Open a short ChatGPT planning conversation that already states:
    - goal: add `GET /health`;
@@ -22,7 +22,7 @@ This script is designed for a real browser and terminal recording. Do not replac
 | ------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | 0–3 s   | Show the final ChatGPT planning messages and click **Handoff**.                                                                       | ContextParcel opens beside the active conversation.                                                                 |
 | 3–6 s   | Choose **Selected messages**, select the requirement and decision messages, choose `DemoService`, and keep Codex/Git context enabled. | Only the intended messages are checked.                                                                             |
-| 6–9 s   | Click **Preview**.                                                                                                                    | The panel shows message counts, project, branch, changed-file count, and Codex.                                     |
+| 6–9 s   | Click **Preview**.                                                                                                                    | The panel shows included/excluded categories, counts, project, Git summary, and Codex.                              |
 | 9–11 s  | Click **Send**.                                                                                                                       | A local handoff ID/path appears and Codex starts through its CLI.                                                   |
 | 11–18 s | Let Codex read `handoff.md` and inspect the repository.                                                                               | Codex states the health-route goal, JSON decision, no-database constraint, acceptance test, branch, and dirty file. |
 

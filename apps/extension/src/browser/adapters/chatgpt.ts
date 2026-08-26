@@ -6,6 +6,10 @@ const CHATGPT_HOSTS = new Set(["chatgpt.com", "chat.openai.com"]);
 function cleanText(element: Element): string {
   const clone = element.cloneNode(true) as Element;
   clone.querySelectorAll("button, svg, nav, [aria-hidden='true']").forEach((node) => node.remove());
+  clone.querySelectorAll("pre").forEach((node) => {
+    const code = (node.textContent ?? "").trim();
+    node.replaceWith(clone.ownerDocument.createTextNode(`\n\`\`\`\n${code}\n\`\`\`\n`));
+  });
   return (clone.textContent ?? "")
     .replace(/\u00a0/gu, " ")
     .replace(/\n{3,}/gu, "\n\n")
@@ -31,6 +35,7 @@ export class ChatGPTAdapter implements SourceAdapter {
       )
     ];
     const seen = new Set<Element>();
+    const usedIds = new Map<string, number>();
     const messages: ConversationMessage[] = [];
 
     for (const node of roleNodes) {
@@ -45,11 +50,14 @@ export class ChatGPTAdapter implements SourceAdapter {
         ) ?? node;
       const text = cleanText(preferred);
       if (text.length === 0) continue;
+      const baseId =
+        node.dataset.messageId ??
+        container.getAttribute("data-testid") ??
+        `chatgpt-${messages.length + 1}`;
+      const occurrences = usedIds.get(baseId) ?? 0;
+      usedIds.set(baseId, occurrences + 1);
       messages.push({
-        id:
-          node.dataset.messageId ??
-          container.getAttribute("data-testid") ??
-          `chatgpt-${messages.length + 1}`,
+        id: occurrences === 0 ? baseId : `${baseId}-${occurrences + 1}`,
         role: roleValue,
         text
       });

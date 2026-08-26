@@ -6,7 +6,11 @@ import type {
   TargetAgent
 } from "@contextparcel/protocol";
 import { ChatGPTAdapter, GenericSelectionAdapter, SourceAdapterError } from "./browser/adapters";
-import { messageIdentity, selectConversationMessages } from "./browser/select-messages";
+import {
+  messageIdentity,
+  normalizeRecentCount,
+  selectConversationMessages
+} from "./browser/select-messages";
 import type { DaemonRequestMessage, DaemonResponse, OpenHandoffMessage } from "./messages";
 
 const STYLE = `
@@ -64,7 +68,15 @@ interface PreviewData {
   user_messages: number;
   assistant_messages: number;
   project: ProjectOption;
-  git: { branch: string | null; changed_files: number; dirty: boolean } | null;
+  git: {
+    branch: string | null;
+    commit: string | null;
+    changed_files: number;
+    dirty: boolean;
+    diff_stat: boolean;
+    recent_commits: number;
+  } | null;
+  task: boolean;
   target: TargetAgent;
   target_available: boolean;
   target_version: string | null;
@@ -223,7 +235,17 @@ function ContextParcelPanel({
     const response = await daemonRequest({
       endpoint: "/v1/preview",
       method: "POST",
-      body: request
+      body: {
+        target: request.target,
+        project_id: request.project_id,
+        message_counts: {
+          user: request.conversation.messages.filter((message) => message.role === "user").length,
+          assistant: request.conversation.messages.filter((message) => message.role === "assistant")
+            .length
+        },
+        include_git: request.include_git,
+        include_task: includeTask
+      }
     });
     setBusy(false);
     if (!response.ok) {
@@ -359,7 +381,7 @@ function ContextParcelPanel({
                         max={500}
                         value={recentCount}
                         onChange={(event) =>
-                          setRecentCount(Math.max(1, Number(event.target.value)))
+                          setRecentCount(normalizeRecentCount(Number(event.target.value)))
                         }
                       />{" "}
                       messages
@@ -466,6 +488,7 @@ function ContextParcelPanel({
         {paired === true && preview !== null ? (
           <>
             <div className="cp-preview">
+              <p className="cp-label">Will include</p>
               <p>
                 <strong>{preview.messages} messages</strong> · {preview.user_messages} user ·{" "}
                 {preview.assistant_messages} assistant
@@ -474,10 +497,15 @@ function ContextParcelPanel({
               <p>
                 Git:{" "}
                 {preview.git
-                  ? `${preview.git.branch ?? "detached"} · ${preview.git.changed_files} changed files`
+                  ? `${preview.git.branch ?? "detached"} · ${preview.git.changed_files} changed files · ${preview.git.recent_commits} recent commits${preview.git.diff_stat ? " · diff statistics" : ""}`
                   : "not included"}
               </p>
+              <p>Current task: {preview.task ? "included" : "not included"}</p>
               <p>Target: {preview.target === "claude" ? "Claude Code" : preview.target}</p>
+              <p className="cp-label">Will NOT include</p>
+              <p>
+                .env files · SSH keys · saved credentials · repository file contents · full diff
+              </p>
               {!preview.target_available ? (
                 <p className="cp-error">
                   Target CLI is not installed. Install it before sending, or cancel.
@@ -501,7 +529,8 @@ function ContextParcelPanel({
         ) : null}
 
         <p className="cp-privacy">
-          Your conversations stay on your machine. Only the messages shown here are handed off.
+          Preview sends only counts and the selected project to 127.0.0.1. Conversation text is
+          transferred locally only after you click Send.
         </p>
       </div>
     </div>

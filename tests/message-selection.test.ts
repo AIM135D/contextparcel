@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { selectConversationMessages } from "../apps/extension/src/browser/select-messages";
+import {
+  normalizeRecentCount,
+  selectConversationMessages
+} from "../apps/extension/src/browser/select-messages";
 
 const messages = [
   { id: "u1", role: "user" as const, text: "first" },
@@ -31,5 +34,12 @@ describe("conversation range selection", () => {
         includeAssistant: false
       })
     ).toEqual([{ id: "u2", role: "user", text: "third" }]);
+  });
+
+  it("clamps invalid recent counts to the supported range", () => {
+    expect(normalizeRecentCount(Number.NaN)).toBe(1);
+    expect(normalizeRecentCount(-4)).toBe(1);
+    expect(normalizeRecentCount(12.9)).toBe(12);
+    expect(normalizeRecentCount(999)).toBe(500);
   });
 });

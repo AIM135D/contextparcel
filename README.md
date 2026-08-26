@@ -6,6 +6,8 @@ One-click context handoff from ChatGPT to Codex, Claude Code, and Cursor. Discus
 
 [简体中文](README.zh-CN.md) · [Protocol](docs/protocol.md) · [Security](SECURITY.md)
 
+[![CI](https://github.com/AIM135D/contextparcel/actions/workflows/ci.yml/badge.svg)](https://github.com/AIM135D/contextparcel/actions/workflows/ci.yml)
+
 ```text
 ChatGPT / selected web text
              │
@@ -22,27 +24,36 @@ ChatGPT / selected web text
 
 Your conversations stay on your machine. ContextParcel has no hosted backend, needs no account or API key, and never reads conversations you did not explicitly hand off.
 
-## Install and make your first handoff
+## First handoff
 
 ContextParcel is currently distributed through GitHub Releases. The npm name is reserved but the package is not yet published to the npm registry.
 
 ```bash
-npm install -g https://github.com/AIM135D/contextparcel/releases/download/v0.1.0/contextparcel-0.1.0.tgz
+npm install -g https://github.com/AIM135D/contextparcel/releases/download/v0.2.0/contextparcel-0.2.0.tgz
 
 cd /path/to/your/project
-contextparcel init
-contextparcel serve
+contextparcel setup
 ```
+
+`setup` registers the project, checks Git and the supported agent CLIs, starts the daemon in the background, and prints a pairing code. Running it again is safe.
 
 Then install the browser extension:
 
-1. Download `contextparcel-extension-v0.1.0.zip` from the [v0.1.0 release](https://github.com/AIM135D/contextparcel/releases/tag/v0.1.0) and unzip it.
+1. Download `contextparcel-extension-v0.2.0.zip` from the [v0.2.0 release](https://github.com/AIM135D/contextparcel/releases/tag/v0.2.0) and unzip it.
 2. Open `chrome://extensions` or `edge://extensions`.
 3. Enable **Developer mode**, choose **Load unpacked**, and select the unzipped directory.
-4. In another terminal, run `contextparcel pair` and enter the one-time code in the extension.
+4. Enter the one-time code printed by `contextparcel setup` (run `contextparcel pair` for a new one).
 5. Open a ChatGPT conversation and click **Handoff**.
 
-The extension previews the exact message counts, project, Git state, and target before anything is written or launched.
+Preview sends only message counts, options, and the selected project ID to `127.0.0.1`. Conversation text is transferred locally only after **Send**.
+
+## What moves—and what does not
+
+| Will include, when selected                                       | Will not include                                                      |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Chosen conversation messages and current task                     | Other conversations or hidden history                                 |
+| Branch, HEAD, changed file names, diff statistics, recent commits | `.env`, SSH keys, credentials, repository file contents, or full diff |
+| Registered project identity and chosen target                     | Cloud upload, telemetry, or account data                              |
 
 ## Four focused capabilities
 
@@ -93,11 +104,19 @@ The panel lets you choose:
 
 The extension does not type into ChatGPT, send ChatGPT messages, browse other conversations, or run arbitrary shell commands.
 
+## Positioning
+
+ContextParcel handles the browser-to-local transition: an explicit subset of a web conversation becomes a reviewable local packet with repository state, then opens in an existing coding-agent CLI. It is not a chat archive, prompt manager, cloud sync service, or agent orchestrator.
+
 ## CLI
 
 ```text
 contextparcel init [path]            initialize and register a project
-contextparcel serve                 run the 127.0.0.1 daemon
+contextparcel setup [path]           guided, idempotent first-time setup
+contextparcel start                 start the daemon in the background
+contextparcel stop                  stop the managed background daemon
+contextparcel restart               restart the managed background daemon
+contextparcel serve                 run the daemon in the foreground
 contextparcel status                show daemon, pairing, and project state
 contextparcel pair                  issue a one-time six-digit pairing code
 contextparcel doctor                check Node, Git, daemon, extension, and agent CLIs
@@ -161,11 +180,11 @@ Run `contextparcel demo` for an installation-free example, or inspect [`examples
 
 These tools address adjacent workflows; the distinctions above describe scope, not quality.
 
-## V0.1 limitations
+## V0.2 limitations
 
 - ChatGPT Web is the only structured web adapter. Other sites use text selection.
 - The extension is distributed as a release ZIP, not through Chrome Web Store or Edge Add-ons.
-- npm registry publication is pending; install the release tarball instead.
+- npm registry publication needs maintainer authentication; install the release tarball instead.
 - Packets are local files with no cloud sync, team workspace, or automatic summarization.
 
 Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md), especially the small source and target adapter interfaces.

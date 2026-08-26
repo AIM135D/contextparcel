@@ -12,6 +12,11 @@ export function messageIdentity(message: ConversationMessage, index: number): st
   return message.id ?? `message-${index}`;
 }
 
+export function normalizeRecentCount(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(500, Math.max(1, Math.trunc(value)));
+}
+
 export function selectConversationMessages(
   messages: readonly ConversationMessage[],
   options: MessageSelectionOptions
@@ -27,7 +32,7 @@ export function selectConversationMessages(
   if (options.mode === "selected") {
     selected = selected.filter(({ id }) => options.selectedIds.has(id));
   } else if (options.mode === "recent") {
-    selected = selected.slice(-options.recentCount);
+    selected = selected.slice(-normalizeRecentCount(options.recentCount));
   }
 
   return selected.map(({ message }) => message);

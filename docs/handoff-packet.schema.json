@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/AIM135D/contextparcel/blob/v0.1.0/docs/handoff-packet.schema.json",
+  "$id": "https://github.com/AIM135D/contextparcel/blob/v0.2.0/docs/handoff-packet.schema.json",
   "title": "ContextParcel Handoff Packet v1",
   "type": "object",
   "additionalProperties": false,

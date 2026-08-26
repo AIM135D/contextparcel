@@ -1,7 +1,12 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { randomUUID } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { z, ZodError } from "zod";
-import { CreateHandoffRequestSchema, PairRequestSchema } from "@contextparcel/protocol";
+import {
+  CreateHandoffRequestSchema,
+  PairRequestSchema,
+  PreviewHandoffRequestSchema
+} from "@contextparcel/protocol";
 import { AdapterNotInstalledError } from "@contextparcel/targets";
 import {
   APP_NAME,
@@ -31,12 +36,14 @@ export interface DaemonOptions {
   store?: StateStore;
   logger?: Logger;
   targetFactory?: TargetFactory;
+  instanceId?: string;
 }
 
 export interface RunningDaemon {
   server: Server;
   host: string;
   port: number;
+  instanceId: string;
   close(): Promise<void>;
 }
 
@@ -153,13 +160,19 @@ export function createDaemonServer(options: DaemonOptions = {}): Server {
   const store = options.store ?? new StateStore();
   const logger = options.logger ?? new StructuredLogger();
   const handoffs = new HandoffService(store, options.targetFactory);
+  const instanceId = options.instanceId ?? randomUUID();
 
   const server = createServer((req, res) => {
     void (async () => {
       let responseOrigin: string | undefined;
       try {
         if (req.method === "GET" && req.url === "/v1/health") {
-          respondJson(res, 200, { name: APP_NAME, version: APP_VERSION, status: "ok" });
+          respondJson(res, 200, {
+            name: APP_NAME,
+            version: APP_VERSION,
+            status: "ok",
+            instance_id: instanceId
+          });
           return;
         }
 
@@ -215,7 +228,7 @@ export function createDaemonServer(options: DaemonOptions = {}): Server {
         }
 
         if (req.method === "POST" && req.url === "/v1/preview") {
-          const request = CreateHandoffRequestSchema.parse(await readJsonBody(req));
+          const request = PreviewHandoffRequestSchema.parse(await readJsonBody(req));
           respondJson(res, 200, await handoffs.preview(request), responseOrigin);
           return;
         }
@@ -272,7 +285,8 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     );
   }
   const requestedPort = options.port ?? DEFAULT_PORT;
-  const server = createDaemonServer(options);
+  const instanceId = options.instanceId ?? randomUUID();
+  const server = createDaemonServer({ ...options, instanceId });
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(requestedPort, host, resolve);
@@ -286,6 +300,7 @@ export async function startDaemon(options: DaemonOptions = {}): Promise<RunningD
     server,
     host,
     port: tcpAddress.port,
+    instanceId,
     close: () =>
       new Promise<void>((resolve, reject) => {
         server.close((error) => (error === undefined ? resolve() : reject(error)));

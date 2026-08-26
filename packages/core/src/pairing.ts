@@ -4,6 +4,7 @@ import { AuthenticationError, OriginError } from "./errors.js";
 import type { PairingRecord, StateStore } from "./storage.js";
 
 const EXTENSION_ORIGIN = /^chrome-extension:\/\/([a-z]{32})$/u;
+export const MAX_PAIRING_ATTEMPTS = 10;
 
 function digest(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
@@ -13,6 +14,15 @@ function equalDigests(left: string, right: string): boolean {
   const leftBuffer = Buffer.from(left, "hex");
   const rightBuffer = Buffer.from(right, "hex");
   return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function withoutPairCode(state: Awaited<ReturnType<StateStore["readState"]>>) {
+  return {
+    version: state.version,
+    port: state.port,
+    projects: state.projects,
+    pairings: state.pairings
+  };
 }
 
 export function validateExtensionOrigin(origin: string, extensionId?: string): string {
@@ -35,7 +45,7 @@ export async function issuePairingCode(
   const expiresAt = new Date(Date.now() + PAIR_CODE_TTL_MS).toISOString();
   await store.updateState((state) => ({
     ...state,
-    pair_code: { hash: digest(code), expires_at: expiresAt }
+    pair_code: { hash: digest(code), expires_at: expiresAt, attempts: 0 }
   }));
   return { code, expiresAt };
 }
@@ -53,12 +63,12 @@ export async function consumePairingCode(
 
   await store.updateState((state) => {
     const record = state.pair_code;
-    if (
-      record === undefined ||
-      Date.parse(record.expires_at) <= Date.now() ||
-      !equalDigests(record.hash, digest(code))
-    ) {
-      return state;
+    if (record === undefined) return state;
+    if (Date.parse(record.expires_at) <= Date.now()) return withoutPairCode(state);
+    if (!equalDigests(record.hash, digest(code))) {
+      const attempts = (record.attempts ?? 0) + 1;
+      if (attempts >= MAX_PAIRING_ATTEMPTS) return withoutPairCode(state);
+      return { ...state, pair_code: { ...record, attempts } };
     }
 
     accepted = true;
@@ -68,12 +78,7 @@ export async function consumePairingCode(
       token_hash: tokenHash,
       paired_at: new Date().toISOString()
     };
-    const stateWithoutPairCode = {
-      version: state.version,
-      port: state.port,
-      projects: state.projects,
-      pairings: state.pairings
-    };
+    const stateWithoutPairCode = withoutPairCode(state);
     return {
       ...stateWithoutPairCode,
       pairings: [...state.pairings.filter((item) => item.origin !== origin), pairing]

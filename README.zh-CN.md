@@ -6,6 +6,8 @@
 
 [English](README.md) · [开放协议](docs/protocol.md) · [安全说明](SECURITY.md)
 
+[![CI](https://github.com/AIM135D/contextparcel/actions/workflows/ci.yml/badge.svg)](https://github.com/AIM135D/contextparcel/actions/workflows/ci.yml)
+
 ```text
 ChatGPT / 网页选中文本
           │
@@ -22,27 +24,36 @@ ChatGPT / 网页选中文本
 
 所有对话都留在本机。ContextParcel 不依赖云端后端，不要求账号或 API key，也不会读取用户没有明确交接的其他对话。
 
-## 安装并完成第一次交接
+## 完成第一次交接
 
 ContextParcel 目前通过 GitHub Releases 分发。npm 包名已经保留，但尚未发布到 npm registry。
 
 ```bash
-npm install -g https://github.com/AIM135D/contextparcel/releases/download/v0.1.0/contextparcel-0.1.0.tgz
+npm install -g https://github.com/AIM135D/contextparcel/releases/download/v0.2.0/contextparcel-0.2.0.tgz
 
 cd /path/to/your/project
-contextparcel init
-contextparcel serve
+contextparcel setup
 ```
+
+`setup` 会注册项目、检查 Git 和受支持的 Agent CLI、在后台启动 daemon，并显示配对码。重复执行不会创建重复项目或进程。
 
 接着安装浏览器扩展：
 
-1. 从 [v0.1.0 Release](https://github.com/AIM135D/contextparcel/releases/tag/v0.1.0) 下载 `contextparcel-extension-v0.1.0.zip` 并解压。
+1. 从 [v0.2.0 Release](https://github.com/AIM135D/contextparcel/releases/tag/v0.2.0) 下载 `contextparcel-extension-v0.2.0.zip` 并解压。
 2. 打开 `chrome://extensions` 或 `edge://extensions`。
 3. 启用“开发者模式”，点击“加载已解压的扩展程序”，选择刚才解压的目录。
-4. 在另一个终端运行 `contextparcel pair`，将一次性配对码填入扩展。
+4. 填入 `contextparcel setup` 显示的一次性配对码；如需新配对码，可运行 `contextparcel pair`。
 5. 打开一个 ChatGPT 对话，点击 **Handoff**。
 
-写入文件或启动 Agent 之前，扩展会预览消息数量、目标项目、Git 状态和目标 Agent，用户可以随时取消。
+预览阶段只向 `127.0.0.1` 发送消息数量、选项和项目 ID。只有点击 **Send** 后，对话正文才会在本机传给 daemon。
+
+## 会交接什么，不会交接什么
+
+| 用户勾选后会交接                            | 不会交接                                           |
+| ------------------------------------------- | -------------------------------------------------- |
+| 指定范围内的对话消息和当前任务              | 其他对话或隐藏历史                                 |
+| 分支、HEAD、变更文件名、diff 统计和近期提交 | `.env`、SSH key、认证信息、仓库文件内容或完整 diff |
+| 已注册项目的身份和目标 Agent                | 云端上传、遥测或账号数据                           |
 
 ## 四项主要能力
 
@@ -93,11 +104,19 @@ contextparcel serve
 
 扩展不会操作 ChatGPT 输入框，不会代替用户发送消息，也不会浏览其他对话。网页同样不能借扩展要求 daemon 执行任意 shell command。
 
+## 项目定位
+
+ContextParcel 只处理“浏览器对话进入本地开发环境”这一段：用户明确选择消息范围，工具生成可检查的本地 packet，附上只读仓库状态，再交给已有的 Coding Agent CLI。它不是聊天归档、提示词管理器、云同步服务或 Agent 编排器。
+
 ## CLI
 
 ```text
 contextparcel init [path]            初始化并注册项目
-contextparcel serve                 启动仅监听 127.0.0.1 的 daemon
+contextparcel setup [path]           引导式、可重复执行的首次设置
+contextparcel start                 在后台启动 daemon
+contextparcel stop                  停止由 ContextParcel 管理的后台 daemon
+contextparcel restart               重启后台 daemon
+contextparcel serve                 在前台启动 daemon
 contextparcel status                查看 daemon、配对和项目状态
 contextparcel pair                  生成六位一次性配对码
 contextparcel doctor                检查 Node、Git、daemon、扩展和 Agent CLI
@@ -161,11 +180,11 @@ node dist/contextparcel.cjs demo
 
 这些项目处理相邻问题，上述说明只用于划分范围，不评价项目质量。
 
-## V0.1 的限制
+## V0.2 的限制
 
 - 目前只有 ChatGPT Web 支持结构化消息解析，其他网站使用文字选区；
 - 扩展通过 Release ZIP 分发，尚未进入 Chrome Web Store 或 Edge Add-ons；
-- npm registry 发布尚未完成，请安装 Release 中的 tarball；
+- npm registry 发布仍需维护者账号登录，请先安装 Release 中的 tarball；
 - packet 是本地文件，不包含云同步、团队空间或自动总结。
 
 欢迎参与贡献。请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。source/target adapter 接口很小，新增支持不需要改动核心流程。

@@ -79,6 +79,6 @@ The adapter passes the absolute `handoff.md` path in a single initial prompt arg
 - A minor revision may add optional fields without changing existing meaning.
 - A major revision may change required fields or semantics.
 - Consumers must reject unsupported major versions.
-- Consumers may accept newer minor versions only when they ignore unknown optional fields safely. ContextParcel v0.1 intentionally uses strict validation and accepts exactly `1.0`.
+- Consumers may accept newer minor versions only when they ignore unknown optional fields safely. ContextParcel v0.2 intentionally uses strict validation and accepts exactly `1.0`.
 
 Protocol proposals should include schema changes, examples, compatibility notes, privacy analysis, and tests.

@@ -4,6 +4,7 @@ import type {
   DaemonResponse,
   OpenHandoffMessage
 } from "./messages";
+import { EXTENSION_VERSION } from "./version.ts";
 
 const ENDPOINTS = new Set<DaemonEndpoint>([
   "/v1/pair",
@@ -63,7 +64,7 @@ async function requestDaemon(message: DaemonRequestMessage): Promise<DaemonRespo
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      "X-ContextParcel-Version": "0.1.0"
+      "X-ContextParcel-Version": EXTENSION_VERSION
     };
     if (message.endpoint !== "/v1/pair" && typeof stored.pairingToken === "string") {
       headers.Authorization = `Bearer ${stored.pairingToken}`;

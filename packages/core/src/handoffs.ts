@@ -7,6 +7,7 @@ import {
   SCHEMA_VERSION,
   type CreateHandoffRequest,
   type HandoffPacket,
+  type PreviewHandoffRequest,
   type TargetAgent
 } from "@contextparcel/protocol";
 import { createTargetAdapter, type TargetAdapter } from "@contextparcel/targets";
@@ -20,7 +21,15 @@ export interface HandoffPreview {
   user_messages: number;
   assistant_messages: number;
   project: { id: string; name: string };
-  git: { branch: string | null; changed_files: number; dirty: boolean } | null;
+  git: {
+    branch: string | null;
+    commit: string | null;
+    changed_files: number;
+    dirty: boolean;
+    diff_stat: boolean;
+    recent_commits: number;
+  } | null;
+  task: boolean;
   target: TargetAgent;
   target_available: boolean;
   target_version: string | null;
@@ -43,24 +52,29 @@ export class HandoffService {
     private readonly targetFactory: TargetFactory = createTargetAdapter
   ) {}
 
-  async preview(request: CreateHandoffRequest): Promise<HandoffPreview> {
+  async preview(request: PreviewHandoffRequest): Promise<HandoffPreview> {
     const project = await getRegisteredProject(this.store, request.project_id);
     const [git, adapterVersion] = await Promise.all([
       request.include_git ? collectGitContext(project.root) : Promise.resolve(null),
       this.targetFactory(request.target).version()
     ]);
     return {
-      messages: request.conversation.messages.length,
-      user_messages: request.conversation.messages.filter((message) => message.role === "user")
-        .length,
-      assistant_messages: request.conversation.messages.filter(
-        (message) => message.role === "assistant"
-      ).length,
+      messages: request.message_counts.user + request.message_counts.assistant,
+      user_messages: request.message_counts.user,
+      assistant_messages: request.message_counts.assistant,
       project: { id: project.id, name: project.name },
       git:
         git === null
           ? null
-          : { branch: git.branch, changed_files: git.changed_files.length, dirty: git.dirty },
+          : {
+              branch: git.branch,
+              commit: git.commit,
+              changed_files: git.changed_files.length,
+              dirty: git.dirty,
+              diff_stat: git.diff_stat !== null,
+              recent_commits: git.recent_commits.length
+            },
+      task: request.include_task,
       target: request.target,
       target_available: adapterVersion !== null,
       target_version: adapterVersion

@@ -107,6 +107,24 @@ export const CreateHandoffRequestSchema = z
   })
   .strict();
 
+export const PreviewHandoffRequestSchema = z
+  .object({
+    target: z.enum(TARGET_AGENTS),
+    project_id: z.uuid(),
+    message_counts: z
+      .object({
+        user: z.number().int().min(0).max(10_000),
+        assistant: z.number().int().min(0).max(10_000)
+      })
+      .strict()
+      .refine(({ user, assistant }) => user + assistant > 0, {
+        message: "At least one message is required."
+      }),
+    include_git: z.boolean().default(true),
+    include_task: z.boolean().default(true)
+  })
+  .strict();
+
 export const PairRequestSchema = z
   .object({
     code: z.string().regex(/^\d{6}$/),
@@ -119,6 +137,7 @@ export type Source = z.infer<typeof SourceSchema>;
 export type GitContext = z.infer<typeof GitContextSchema>;
 export type HandoffPacket = z.infer<typeof HandoffPacketSchema>;
 export type CreateHandoffRequest = z.infer<typeof CreateHandoffRequestSchema>;
+export type PreviewHandoffRequest = z.infer<typeof PreviewHandoffRequestSchema>;
 export type TargetAgent = (typeof TARGET_AGENTS)[number];
 
 export function parseHandoffPacket(value: unknown): HandoffPacket {

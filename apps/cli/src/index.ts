@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import { promisify } from "node:util";
-import { Command, InvalidArgumentError } from "commander";
+import { Command, InvalidArgumentError, Option } from "commander";
 import {
   APP_NAME,
   APP_VERSION,
@@ -10,12 +10,18 @@ import {
   DEFAULT_PORT,
   HandoffService,
   StateStore,
+  canonicalDirectory,
+  daemonRecord,
   initializeProject,
+  inspectDaemon,
   issuePairingCode,
   listProjects,
+  startManagedDaemon,
   startDaemon,
+  stopManagedDaemon,
   type RegisteredProject
 } from "@contextparcel/core";
+import { collectGitContext, isGitRepository } from "@contextparcel/git-context";
 import {
   CreateHandoffRequestSchema,
   TARGET_AGENTS,
@@ -25,22 +31,25 @@ import { createTargetAdapter } from "@contextparcel/targets";
 
 const execFileAsync = promisify(execFile);
 
+function portValue(value: string): number {
+  const port = Number.parseInt(value, 10);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new InvalidArgumentError("Port must be 1-65535.");
+  }
+  return port;
+}
+
+function cliPath(): string {
+  const path = process.argv[1];
+  if (path === undefined) throw new Error("Could not resolve the ContextParcel CLI path.");
+  return resolve(path);
+}
+
 function targetValue(value: string): (typeof TARGET_AGENTS)[number] {
   if (TARGET_AGENTS.includes(value as (typeof TARGET_AGENTS)[number])) {
     return value as (typeof TARGET_AGENTS)[number];
   }
   throw new InvalidArgumentError(`Target must be one of: ${TARGET_AGENTS.join(", ")}`);
-}
-
-async function daemonHealth(port: number): Promise<boolean> {
-  try {
-    const response = await fetch(`http://${DEFAULT_HOST}:${port}/v1/health`, {
-      signal: AbortSignal.timeout(1_000)
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
 }
 
 async function commandVersion(command: string): Promise<string | null> {
@@ -136,29 +145,156 @@ program
   });
 
 program
+  .command("setup")
+  .description("Guide first-time project, daemon, agent, and extension setup")
+  .argument("[path]", "project root", ".")
+  .option("--name <name>", "project display name")
+  .option("-p, --port <port>", "localhost port", portValue)
+  .action(async (path: string, options: { name?: string; port?: number }) => {
+    const store = new StateStore();
+    const root = await canonicalDirectory(path);
+    const existing = (await listProjects(store)).some((project) => project.root === root);
+    const project = await initializeProject(store, root, options.name);
+    const gitRepository = await isGitRepository(root);
+    const git = gitRepository ? await collectGitContext(root) : null;
+    const [codex, claude, cursor] = await Promise.all([
+      createTargetAdapter("codex").version(),
+      createTargetAdapter("claude").version(),
+      createTargetAdapter("cursor").version()
+    ]);
+    const daemon = await startManagedDaemon({
+      store,
+      cliPath: cliPath(),
+      ...(options.port === undefined ? {} : { port: options.port })
+    });
+    const state = await store.readState();
+    const pairing = state.pairings.length === 0 ? await issuePairingCode(store) : null;
+
+    console.log(`${APP_NAME} Setup\n`);
+    console.log("Project");
+    console.log(`✓ ${project.root}${existing ? " (already registered)" : ""}`);
+    console.log(`  ${project.name} · ${project.id}`);
+    console.log("\nGit");
+    if (gitRepository) {
+      console.log("✓ repository detected");
+      console.log(`✓ branch: ${git?.branch ?? "detached HEAD"}`);
+    } else {
+      console.log("○ not a Git repository (optional; Git context will be omitted)");
+    }
+    console.log("\nDaemon");
+    console.log(
+      `✓ running on ${DEFAULT_HOST}:${daemon.port}${daemon.alreadyRunning ? " (already running)" : ""}`
+    );
+    console.log("\nCoding agents");
+    const agentRow = (name: string, version: string | null): void => {
+      console.log(version === null ? `○ ${name} not installed (optional)` : `✓ ${name} ${version}`);
+    };
+    agentRow("Codex", codex);
+    agentRow("Claude Code", claude);
+    agentRow("Cursor", cursor);
+    console.log("\nBrowser extension");
+    if (pairing === null) {
+      console.log(`✓ paired (${state.pairings.length})`);
+      console.log("\n✓ ContextParcel is ready.");
+    } else {
+      console.log("○ not paired yet");
+      console.log(`\nPairing code: ${pairing.code}`);
+      console.log(`Expires: ${pairing.expiresAt}`);
+      console.log("\nNext:");
+      console.log("1. Install or load the ContextParcel extension.");
+      console.log(`2. Enter pairing code ${pairing.code}.`);
+      console.log("3. Open ChatGPT and click Handoff.");
+    }
+  });
+
+const serveCommand = program
   .command("serve")
   .description("Start the local-only handoff daemon")
-  .option("-p, --port <port>", "localhost port", String(DEFAULT_PORT))
-  .action(async (options: { port: string }) => {
-    const port = Number.parseInt(options.port, 10);
-    if (!Number.isInteger(port) || port < 1 || port > 65_535)
-      throw new Error("Port must be 1-65535.");
-    const store = new StateStore();
-    await store.updateState((state) => ({ ...state, port }));
-    const daemon = await startDaemon({ port, store });
-    console.log(`${APP_NAME} is listening on http://${daemon.host}:${daemon.port}`);
-    console.log("Conversations stay on this machine. Press Ctrl+C to stop.");
+  .option("-p, --port <port>", "localhost port", portValue, DEFAULT_PORT)
+  .addOption(new Option("--managed").hideHelp())
+  .addOption(new Option("--instance-id <id>").hideHelp());
 
-    await new Promise<void>((resolveShutdown) => {
-      let closing = false;
-      const shutdown = (): void => {
-        if (closing) return;
-        closing = true;
-        void daemon.close().finally(resolveShutdown);
-      };
-      process.once("SIGINT", shutdown);
-      process.once("SIGTERM", shutdown);
+serveCommand.action(async (options: { port: number; managed?: boolean; instanceId?: string }) => {
+  if (options.managed && options.instanceId === undefined) {
+    throw new Error("Managed daemon startup requires an instance ID.");
+  }
+  const port = options.port;
+  const store = new StateStore();
+  await store.updateState((state) => ({ ...state, port }));
+  const daemon = await startDaemon({
+    port,
+    store,
+    ...(options.instanceId === undefined ? {} : { instanceId: options.instanceId })
+  });
+  if (options.managed) {
+    await store.writeDaemonRecord(daemonRecord(process.pid, daemon.port, daemon.instanceId));
+  }
+  console.log(`${APP_NAME} is listening on http://${daemon.host}:${daemon.port}`);
+  console.log(
+    options.managed
+      ? `Managed daemon PID: ${process.pid}`
+      : "Conversations stay on this machine. Press Ctrl+C to stop."
+  );
+
+  await new Promise<void>((resolveShutdown) => {
+    let closing = false;
+    const shutdown = (): void => {
+      if (closing) return;
+      closing = true;
+      void daemon.close().finally(async () => {
+        if (options.managed) await store.clearDaemonRecord(daemon.instanceId);
+        resolveShutdown();
+      });
+    };
+    process.once("SIGINT", shutdown);
+    process.once("SIGTERM", shutdown);
+  });
+});
+
+program
+  .command("start")
+  .description("Start the daemon in the background")
+  .option("-p, --port <port>", "localhost port", portValue)
+  .action(async (options: { port?: number }) => {
+    const store = new StateStore();
+    const started = await startManagedDaemon({
+      store,
+      cliPath: cliPath(),
+      ...(options.port === undefined ? {} : { port: options.port })
     });
+    console.log(
+      started.alreadyRunning
+        ? `${APP_NAME} daemon is already running on ${DEFAULT_HOST}:${started.port}.`
+        : `${APP_NAME} daemon started on ${DEFAULT_HOST}:${started.port} (PID ${started.pid}).`
+    );
+  });
+
+program
+  .command("stop")
+  .description("Stop the background daemon")
+  .action(async () => {
+    const result = await stopManagedDaemon(new StateStore());
+    if (result.stopped) console.log(`${APP_NAME} daemon stopped (PID ${result.pid}).`);
+    else if (result.staleRecordRemoved)
+      console.log(`${APP_NAME} daemon was not running; removed a stale lifecycle record.`);
+    else console.log(`${APP_NAME} daemon is already stopped.`);
+  });
+
+program
+  .command("restart")
+  .description("Restart the background daemon")
+  .option("-p, --port <port>", "localhost port", portValue)
+  .action(async (options: { port?: number }) => {
+    const store = new StateStore();
+    await stopManagedDaemon(store);
+    const started = await startManagedDaemon({
+      store,
+      cliPath: cliPath(),
+      ...(options.port === undefined ? {} : { port: options.port })
+    });
+    console.log(
+      `${APP_NAME} daemon restarted on ${DEFAULT_HOST}:${started.port} (PID ${started.pid}).`
+    );
   });
 
 program
@@ -167,8 +303,13 @@ program
   .action(async () => {
     const store = new StateStore();
     const state = await store.readState();
+    const daemon = await inspectDaemon(store);
     console.log(`${APP_NAME} ${APP_VERSION}`);
-    console.log(`Daemon: ${(await daemonHealth(state.port)) ? "running" : "stopped"}`);
+    console.log(
+      `Daemon: ${daemon.running ? `running (${daemon.managed ? "background" : "foreground"})` : "stopped"}`
+    );
+    if (daemon.pid !== null) console.log(`PID: ${daemon.pid}`);
+    console.log(`Port: ${state.port}`);
     console.log(`Extension pairings: ${state.pairings.length}`);
     console.log(`Projects: ${state.projects.length}`);
   });
@@ -194,24 +335,37 @@ program
       createTargetAdapter("codex").version(),
       createTargetAdapter("claude").version(),
       createTargetAdapter("cursor").version(),
-      daemonHealth(state.port)
+      inspectDaemon(store)
     ]);
-    const row = (name: string, value: string | null | boolean): void => {
-      const display =
-        value === true ? "✓" : value === false || value === null ? "✗ not installed" : `✓ ${value}`;
+    const actions: string[] = [];
+    const row = (name: string, display: string): void =>
       console.log(`${name.padEnd(14)} ${display}`);
-    };
     console.log(`${APP_NAME} Doctor\n`);
-    row("Node", process.version);
-    row("Git", git);
-    row("Codex", codex);
-    row("Claude Code", claude);
-    row("Cursor", cursor);
-    row("Daemon", daemon);
-    console.log(
-      `${"Extension".padEnd(14)} ${state.pairings.length > 0 ? "✓ paired" : "✗ not paired"}`
+    row("Node", `✓ ${process.version}`);
+    row("Git", git === null ? "○ not installed (Git context optional)" : `✓ ${git}`);
+    row("Codex", codex === null ? "○ not installed (optional)" : `✓ ${codex}`);
+    row("Claude Code", claude === null ? "○ not installed (optional)" : `✓ ${claude}`);
+    row("Cursor", cursor === null ? "○ not installed (optional)" : `✓ ${cursor}`);
+    if (codex === null && claude === null && cursor === null) {
+      actions.push("Install at least one supported coding-agent CLI.");
+    }
+    row(
+      "Daemon",
+      daemon.running
+        ? `✓ running on ${DEFAULT_HOST}:${daemon.port}${daemon.managed ? " (background)" : " (foreground)"}`
+        : "✗ not running"
     );
-    console.log(`${"Projects".padEnd(14)} ${state.projects.length}`);
+    if (!daemon.running) actions.push("contextparcel start");
+    row("Extension", state.pairings.length > 0 ? "✓ paired" : "✗ not paired");
+    if (state.pairings.length === 0) actions.push("contextparcel pair");
+    row("Projects", state.projects.length > 0 ? `✓ ${state.projects.length}` : "✗ none registered");
+    if (state.projects.length === 0) actions.push("contextparcel setup /path/to/project");
+    console.log("");
+    if (actions.length === 0) console.log("✓ ContextParcel is ready.");
+    else {
+      console.log(`${actions.length} action${actions.length === 1 ? "" : "s"} required:`);
+      actions.forEach((action) => console.log(`→ ${action}`));
+    }
   });
 
 program

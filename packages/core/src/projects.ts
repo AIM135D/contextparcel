@@ -24,35 +24,54 @@ async function updateGitignore(root: string): Promise<void> {
   await writeFile(path, `${current}${separator}${GITIGNORE_BLOCK}\n`, "utf8");
 }
 
+async function ensureProjectConfig(
+  projectDirectory: string,
+  project: RegisteredProject
+): Promise<void> {
+  const path = join(projectDirectory, "config.json");
+  try {
+    await readFile(path, "utf8");
+    return;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  await writeFile(
+    path,
+    `${JSON.stringify(
+      { version: 1, project_id: project.id, name: project.name, root: project.root },
+      null,
+      2
+    )}\n`,
+    "utf8"
+  );
+}
+
 export async function initializeProject(
   store: StateStore,
   requestedRoot: string,
   requestedName?: string
 ): Promise<RegisteredProject> {
   const root = await canonicalDirectory(requestedRoot);
-  const state = await store.readState();
-  const existing = state.projects.find((project) => project.root === root);
   const name = requestedName?.trim() || basename(root);
-  const project: RegisteredProject = existing ?? {
-    id: randomUUID(),
-    name,
-    root,
-    created_at: new Date().toISOString()
-  };
-
-  if (existing === undefined) {
-    state.projects.push(project);
-    await store.writeState(state);
-  }
+  if (name.length > 200) throw new Error("Project name must be 200 characters or fewer.");
+  let project: RegisteredProject | undefined;
+  await store.updateState((state) => {
+    project = state.projects.find((item) => item.root === root);
+    if (project !== undefined) return state;
+    project = {
+      id: randomUUID(),
+      name,
+      root,
+      created_at: new Date().toISOString()
+    };
+    return { ...state, projects: [...state.projects, project] };
+  });
+  if (project === undefined) throw new Error("Project registration did not complete.");
 
   const projectDirectory = join(root, ".contextparcel");
   const handoffDirectory = join(projectDirectory, "handoffs");
   await mkdir(handoffDirectory, { recursive: true, mode: 0o700 });
-  await writeFile(
-    join(projectDirectory, "config.json"),
-    `${JSON.stringify({ version: 1, project_id: project.id, name: project.name, root }, null, 2)}\n`,
-    "utf8"
-  );
+  await ensureProjectConfig(projectDirectory, project);
   await writeFile(join(handoffDirectory, ".gitkeep"), "", { flag: "a" });
   await updateGitignore(root);
   return project;

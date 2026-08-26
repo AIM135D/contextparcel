@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Security fixes are provided for the latest tagged release. V0.1 is early software; update promptly when a patch release is published.
+Security fixes are provided for the latest tagged release. V0.2 is early software; update promptly when a patch release is published.
 
 ## Report a vulnerability
 
@@ -28,6 +28,7 @@ Controls:
 
 - The daemon binds only to `127.0.0.1`; a caller cannot select `0.0.0.0`.
 - Pairing requires a six-digit one-time code that expires after five minutes.
+- A code is invalidated after ten unsuccessful guesses.
 - Pairing is accepted only from a syntactically valid `chrome-extension://<id>` Origin whose ID matches the request body.
 - Private routes require both the exact stored Origin and a 256-bit bearer token.
 - CORS never uses a wildcard and preflight is denied for unpaired website origins.
@@ -69,7 +70,7 @@ Controls:
 
 - Git collection runs only `branch --show-current`, `rev-parse HEAD`, `status --short`, `diff --stat`, and a bounded `log` command.
 - ContextParcel does not read repository files, `.env`, SSH keys, credential stores, or a full diff.
-- Full conversation content is included only for the range chosen in the preview.
+- Preview receives counts and choices only. Conversation content is transferred to the local daemon only after the user confirms **Send**.
 - Runtime handoff directories are added to `.gitignore` by default.
 
 ### Retention and local users
