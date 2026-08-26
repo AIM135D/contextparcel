@@ -6,6 +6,7 @@ import type {
   TargetAgent
 } from "@contextparcel/protocol";
 import { ChatGPTAdapter, GenericSelectionAdapter, SourceAdapterError } from "./browser/adapters";
+import { messageIdentity, selectConversationMessages } from "./browser/select-messages";
 import type { DaemonRequestMessage, DaemonResponse, OpenHandoffMessage } from "./messages";
 
 const STYLE = `
@@ -86,10 +87,10 @@ function errorMessage(response: DaemonResponse): string {
 }
 
 async function daemonRequest(message: Omit<DaemonRequestMessage, "type">): Promise<DaemonResponse> {
-  return (await chrome.runtime.sendMessage({
+  return await chrome.runtime.sendMessage({
     type: "DAEMON_REQUEST",
     ...message
-  })) as DaemonResponse;
+  });
 }
 
 function ContextParcelPanel({
@@ -130,9 +131,7 @@ function ContextParcelPanel({
       const extracted = adapter.extract();
       setSource(extracted);
       setSelectionMode(extracted.type === "web-selection" ? "generic-selection" : "recent");
-      setSelectedIds(
-        new Set(extracted.messages.map((message, index) => message.id ?? `message-${index}`))
-      );
+      setSelectedIds(new Set(extracted.messages.map(messageIdentity)));
       setError("");
     } catch (captureError) {
       setSource(null);
@@ -145,7 +144,7 @@ function ContextParcelPanel({
   }, [selectionText]);
 
   const loadProjects = useCallback(async () => {
-    const response = await daemonRequest({ endpoint: "/v1/projects", method: "GET" });
+    const response = await daemonRequest({ endpoint: "/v1/projects", method: "POST", body: {} });
     if (!response.ok) {
       setPaired(false);
       setError(errorMessage(response));
@@ -158,7 +157,7 @@ function ContextParcelPanel({
 
   useEffect(() => {
     captureSource();
-    void daemonRequest({ endpoint: "/v1/status", method: "GET" }).then((response) => {
+    void daemonRequest({ endpoint: "/v1/status", method: "POST", body: {} }).then((response) => {
       setPaired(response.ok);
       if (response.ok) void loadProjects();
     });
@@ -166,19 +165,13 @@ function ContextParcelPanel({
 
   const filteredMessages = useMemo(() => {
     if (source === null) return [];
-    let messages = source.messages.filter(
-      (message) =>
-        (message.role === "user" && includeUser) ||
-        (message.role === "assistant" && includeAssistant)
-    );
-    if (selectionMode === "selected") {
-      messages = messages.filter((message, index) =>
-        selectedIds.has(message.id ?? `message-${index}`)
-      );
-    } else if (selectionMode === "recent") {
-      messages = messages.slice(-recentCount);
-    }
-    return messages;
+    return selectConversationMessages(source.messages, {
+      mode: selectionMode,
+      selectedIds,
+      recentCount,
+      includeUser,
+      includeAssistant
+    });
   }, [includeAssistant, includeUser, recentCount, selectedIds, selectionMode, source]);
 
   const pair = async (): Promise<void> => {
@@ -375,7 +368,7 @@ function ContextParcelPanel({
                   {selectionMode === "selected" && source ? (
                     <div className="cp-message-list">
                       {source.messages.map((message, index) => {
-                        const id = message.id ?? `message-${index}`;
+                        const id = messageIdentity(message, index);
                         return (
                           <label className="cp-message" key={id}>
                             <input

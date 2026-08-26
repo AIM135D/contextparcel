@@ -57,9 +57,10 @@ async function commandVersion(command: string): Promise<string | null> {
 }
 
 async function readStdin(): Promise<string> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
-  return Buffer.concat(chunks).toString("utf8");
+  process.stdin.setEncoding("utf8");
+  let text = "";
+  for await (const chunk of process.stdin) text += String(chunk);
+  return text;
 }
 
 function parseConversationInput(text: string): ConversationMessage[] {
@@ -316,7 +317,7 @@ Branch: feature/health; two changed files; working tree is dirty.
 Inspect the repository, preserve existing changes, implement the endpoint, and run the tests.`);
   });
 
-await program.parseAsync(process.argv).catch((error: unknown) => {
+void program.parseAsync(process.argv).catch((error: unknown) => {
   console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
   process.exitCode = 1;
 });

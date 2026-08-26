@@ -3,6 +3,8 @@ dist/
 coverage/
 apps/extension/dist/
 artifacts/
+output/
+.playwright-cli/
 *.tgz
 *.zip
 *.sha256

@@ -68,7 +68,12 @@ export async function consumePairingCode(
       token_hash: tokenHash,
       paired_at: new Date().toISOString()
     };
-    const { pair_code: _consumedPairCode, ...stateWithoutPairCode } = state;
+    const stateWithoutPairCode = {
+      version: state.version,
+      port: state.port,
+      projects: state.projects,
+      pairings: state.pairings
+    };
     return {
       ...stateWithoutPairCode,
       pairings: [...state.pairings.filter((item) => item.origin !== origin), pairing]

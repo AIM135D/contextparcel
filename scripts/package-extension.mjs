@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { pipeline } from "node:stream/promises";
 import { ZipArchive } from "archiver";
 
@@ -10,7 +11,7 @@ const archivePath = new URL("contextparcel-extension-v0.1.0.zip", outputDirector
 
 await mkdir(outputDirectory, { recursive: true });
 const archive = new ZipArchive({ zlib: { level: 9 } });
-archive.directory(extensionDirectory.pathname, false);
+archive.directory(fileURLToPath(extensionDirectory), false);
 const completion = pipeline(archive, createWriteStream(archivePath));
 await archive.finalize();
 await completion;

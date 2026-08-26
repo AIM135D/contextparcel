@@ -49,7 +49,7 @@ function isDaemonRequest(value: unknown): value is DaemonRequestMessage {
     candidate.type === "DAEMON_REQUEST" &&
     (candidate.method === "GET" || candidate.method === "POST") &&
     typeof candidate.endpoint === "string" &&
-    ENDPOINTS.has(candidate.endpoint as DaemonEndpoint)
+    ENDPOINTS.has(candidate.endpoint)
   );
 }
 

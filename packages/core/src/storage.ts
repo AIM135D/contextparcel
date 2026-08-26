@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -110,7 +111,7 @@ export class StateStore {
 
   private async writeJson(path: string, value: unknown): Promise<void> {
     await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-    const temporaryPath = `${path}.${process.pid}.tmp`;
+    const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
     await writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
     await rename(temporaryPath, path);
     await chmod(path, 0o600);

@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 import { CreateHandoffRequestSchema, PairRequestSchema } from "@contextparcel/protocol";
 import { AdapterNotInstalledError } from "@contextparcel/targets";
 import {
@@ -23,6 +23,7 @@ import { listProjects } from "./projects.js";
 import { StateStore } from "./storage.js";
 
 const ALLOWED_HEADERS = "authorization, content-type, x-contextparcel-version";
+const EmptyRequestSchema = z.object({}).strict();
 
 export interface DaemonOptions {
   host?: string;
@@ -62,19 +63,20 @@ function respondJson(res: ServerResponse, status: number, value: unknown, origin
 }
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
-  const chunks: Buffer[] = [];
+  req.setEncoding("utf8");
+  const chunks: string[] = [];
   let size = 0;
   for await (const chunk of req) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    size += buffer.length;
+    const text = String(chunk);
+    size += Buffer.byteLength(text, "utf8");
     if (size > MAX_REQUEST_BYTES) {
       throw new ContextParcelError("Request body exceeds 2 MiB.", "PAYLOAD_TOO_LARGE", 413);
     }
-    chunks.push(buffer);
+    chunks.push(text);
   }
   if (chunks.length === 0) return {};
   try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+    return JSON.parse(chunks.join("")) as unknown;
   } catch {
     throw new ContextParcelError("Request body must be valid JSON.", "INVALID_JSON", 400);
   }
@@ -187,7 +189,8 @@ export function createDaemonServer(options: DaemonOptions = {}): Server {
 
         responseOrigin = await authorizeOrigin(store, req);
 
-        if (req.method === "GET" && req.url === "/v1/status") {
+        if (req.method === "POST" && req.url === "/v1/status") {
+          EmptyRequestSchema.parse(await readJsonBody(req));
           const [state, projects] = await Promise.all([store.readState(), listProjects(store)]);
           respondJson(
             res,
@@ -204,7 +207,8 @@ export function createDaemonServer(options: DaemonOptions = {}): Server {
           return;
         }
 
-        if (req.method === "GET" && req.url === "/v1/projects") {
+        if (req.method === "POST" && req.url === "/v1/projects") {
+          EmptyRequestSchema.parse(await readJsonBody(req));
           const projects = (await listProjects(store)).map(({ id, name }) => ({ id, name }));
           respondJson(res, 200, { projects }, responseOrigin);
           return;
