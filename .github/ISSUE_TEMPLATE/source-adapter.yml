@@ -1,0 +1,29 @@
+name: New source adapter
+description: Propose support for another web conversation source
+title: "[Source adapter]: "
+labels: [adapter, source]
+body:
+  - type: input
+    id: source
+    attributes:
+      label: Source product and URL
+    validations:
+      required: true
+  - type: textarea
+    id: structure
+    attributes:
+      label: Available semantic DOM or export structure
+    validations:
+      required: true
+  - type: textarea
+    id: permissions
+    attributes:
+      label: Required extension permissions
+    validations:
+      required: true
+  - type: textarea
+    id: fallback
+    attributes:
+      label: Failure and fallback behavior
+    validations:
+      required: true

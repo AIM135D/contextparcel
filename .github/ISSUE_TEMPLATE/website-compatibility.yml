@@ -1,0 +1,32 @@
+name: Website compatibility
+description: Report a web UI change that breaks message extraction
+title: "[Website compatibility]: "
+labels: [compatibility, source]
+body:
+  - type: input
+    id: website
+    attributes:
+      label: Website and page type
+      placeholder: ChatGPT conversation page
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: What happened?
+      description: Redact conversation text and account details from screenshots or DOM snippets.
+    validations:
+      required: true
+  - type: dropdown
+    id: fallback
+    attributes:
+      label: Did Handoff selection still work?
+      options: ["Yes", "No", "Not tested"]
+    validations:
+      required: true
