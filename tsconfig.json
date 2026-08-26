@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "useUnknownInCatchVariables": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "allowJs": false,
+    "jsx": "react-jsx",
+    "paths": {
+      "@contextparcel/protocol": ["./packages/protocol/src/index.ts"],
+      "@contextparcel/git-context": ["./packages/git-context/src/index.ts"],
+      "@contextparcel/core": ["./packages/core/src/index.ts"],
+      "@contextparcel/targets": ["./packages/target-adapters/src/index.ts"]
+    },
+    "types": ["node", "chrome"]
+  },
+  "include": [
+    "apps/**/*.ts",
+    "apps/**/*.tsx",
+    "packages/**/*.ts",
+    "tests/**/*.ts",
+    "scripts/**/*.mjs",
+    "eslint.config.js",
+    "vitest.config.ts"
+  ]
+}

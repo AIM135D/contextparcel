@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+apps/extension/dist/
+artifacts/
+*.tgz
+*.zip
+*.sha256
+.DS_Store
+*.log
